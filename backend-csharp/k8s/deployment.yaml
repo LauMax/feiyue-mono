@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feiyue-api
+  namespace: feiyue-prod
+  labels:
+    app: feiyue-api
+    component: backend
+spec:
+  # 初始副本数：1个实例
+  # 扩容时修改此值，或使用 kubectl scale
+  replicas: 1
+  
+  # 滚动更新策略
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # 更新时最多多启动1个新Pod
+      maxUnavailable: 0  # 更新时保证至少1个Pod可用（零停机）
+  
+  selector:
+    matchLabels:
+      app: feiyue-api
+  
+  template:
+    metadata:
+      labels:
+        app: feiyue-api
+        component: backend
+        version: v1
+    spec:
+      # 容器配置
+      containers:
+        - name: api
+          # 镜像地址（需要替换为实际的镜像仓库）
+          image: ccr.ccs.tencentyun.com/feiyue/api:latest
+          imagePullPolicy: Always
+          
+          # 容器端口
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          
+          # 资源限制
+          resources:
+            requests:
+              cpu: "500m"      # 0.5核
+              memory: "512Mi"  # 512MB
+            limits:
+              cpu: "1000m"     # 最多1核
+              memory: "1Gi"    # 最多1GB
+          
+          # 环境变量（从ConfigMap）
+          envFrom:
+            - configMapRef:
+                name: feiyue-config
+          
+          # 环境变量（从Secret）
+          env:
+            - name: ConnectionStrings__Postgres
+              valueFrom:
+                secretKeyRef:
+                  name: feiyue-secrets
+                  key: postgres-connection
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: feiyue-secrets
+                  key: redis-connection
+            - name: JwtSettings__SecretKey
+              valueFrom:
+                secretKeyRef:
+                  name: feiyue-secrets
+                  key: jwt-secret
+          
+          # 存活探针（检测容器是否正常运行）
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30  # 启动后30秒开始检测
+            periodSeconds: 10        # 每10秒检测一次
+            timeoutSeconds: 5        # 超时时间5秒
+            failureThreshold: 3      # 连续3次失败则重启容器
+          
+          # 就绪探针（检测容器是否准备好接收流量）
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10  # 启动后10秒开始检测
+            periodSeconds: 5         # 每5秒检测一次
+            timeoutSeconds: 3        # 超时时间3秒
+            failureThreshold: 2      # 连续2次失败则从负载均衡移除
+          
+          # 启动探针（慢启动应用的保护）
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30  # 最多等待300秒启动
+      
+      # Pod优雅终止时间（给应用时间清理连接）
+      terminationGracePeriodSeconds: 30

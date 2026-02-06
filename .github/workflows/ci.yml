@@ -1,0 +1,198 @@
+name: CI - Build and Test
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '20.x'
+
+jobs:
+  # ==================== 后端 C# 测试 ====================
+  backend-test:
+    runs-on: ubuntu-latest
+    name: Backend - Build and Test
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: feiyue_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Restore dependencies
+        working-directory: ./backend-csharp
+        run: dotnet restore
+      
+      - name: Build
+        working-directory: ./backend-csharp
+        run: dotnet build --no-restore --configuration Release
+      
+      - name: Run unit tests
+        working-directory: ./backend-csharp
+        run: |
+          dotnet test \
+            --no-build \
+            --configuration Release \
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --logger trx \
+            --results-directory ./TestResults
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend-csharp/TestResults
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: backend-csharp/TestResults/**/coverage.cobertura.xml
+          flags: backend
+          name: backend-coverage
+        continue-on-error: true
+
+  # ==================== 前端测试 ====================
+  frontend-test:
+    runs-on: ubuntu-latest
+    name: Frontend - Build and Test
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+      
+      - name: Lint
+        working-directory: ./frontend
+        run: npm run lint
+        continue-on-error: true
+      
+      - name: Type check
+        working-directory: ./frontend
+        run: npx tsc --noEmit
+        continue-on-error: true
+      
+      - name: Build
+        working-directory: ./frontend
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: http://localhost:8000
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+
+  # ==================== Terraform 验证 ====================
+  terraform-validate:
+    runs-on: ubuntu-latest
+    name: Terraform - Validate
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+      
+      - name: Terraform Format Check
+        working-directory: ./terraform
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+      
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init -backend=false
+      
+      - name: Terraform Validate
+        working-directory: ./terraform
+        run: terraform validate
+
+  # ==================== 构建 Docker 镜像（仅 main 分支）====================
+  docker-build:
+    needs: [backend-test, frontend-test]
+    runs-on: ubuntu-latest
+    name: Docker - Build Images
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Get short SHA
+        id: sha
+        run: |
+          echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+      
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend-csharp
+          file: ./backend-csharp/Dockerfile
+          push: false
+          tags: |
+            feiyue-backend:latest
+            feiyue-backend:${{ steps.sha.outputs.short }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          tags: |
+            feiyue-frontend:latest
+            feiyue-frontend:${{ steps.sha.outputs.short }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

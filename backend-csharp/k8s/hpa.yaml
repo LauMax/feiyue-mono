@@ -1,0 +1,49 @@
+# 水平自动扩缩容（HPA）- 可选配置
+# 根据CPU和内存使用率自动调整副本数
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: feiyue-api-hpa
+  namespace: feiyue-prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: feiyue-api
+  
+  # 副本数范围
+  minReplicas: 1   # 最少1个实例
+  maxReplicas: 10  # 最多10个实例
+  
+  # 扩缩容指标
+  metrics:
+    # CPU使用率
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70  # CPU超过70%时扩容
+    
+    # 内存使用率
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80  # 内存超过80%时扩容
+  
+  # 扩缩容行为
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60  # 扩容前等待60秒稳定
+      policies:
+        - type: Percent
+          value: 50              # 每次最多增加50%的Pod
+          periodSeconds: 60      # 每60秒可以扩容一次
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 缩容前等待300秒（避免频繁缩容）
+      policies:
+        - type: Percent
+          value: 50              # 每次最多减少50%的Pod
+          periodSeconds: 60      # 每60秒可以缩容一次

@@ -1,0 +1,19 @@
+# 开发环境配置
+environment = "dev"
+region      = "ap-guangzhou"
+
+# CVM 配置
+cvm_instance_type = "S5.MEDIUM2"  # 2核2G (开发环境更小配置)
+
+# PostgreSQL 配置
+postgres_instance_type = "cdb.pg.s2.small"  # 1核2G
+postgres_storage_size  = 30
+
+# Redis 配置
+redis_instance_type = "redis.master.small.default"  # 1G
+
+tags = {
+  Project     = "Feiyue"
+  Environment = "Development"
+  ManagedBy   = "Terraform"
+}

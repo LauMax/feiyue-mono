@@ -1,0 +1,167 @@
+name: CD - Deploy to Tencent Cloud
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # 允许手动触发
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  REGISTRY: ccr.ccs.tencentyun.com
+  REGISTRY_NAMESPACE: feiyue
+  BACKEND_IMAGE: feiyue-backend
+  FRONTEND_IMAGE: feiyue-frontend
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    name: Build Backend Docker Image
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Get version info
+        id: version
+        run: |
+          echo "sha_short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+      
+      - name: Login to Tencent Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.TENCENT_REGISTRY_USERNAME }}
+          password: ${{ secrets.TENCENT_REGISTRY_PASSWORD }}
+      
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend-csharp
+          file: ./backend-csharp/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.BACKEND_IMAGE }}:${{ steps.version.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.BACKEND_IMAGE }}:${{ steps.version.outputs.timestamp }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    name: Build Frontend Docker Image
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Get version info
+        id: version
+        run: |
+          echo "sha_short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+      
+      - name: Login to Tencent Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.TENCENT_REGISTRY_USERNAME }}
+          password: ${{ secrets.TENCENT_REGISTRY_PASSWORD }}
+      
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=${{ secrets.API_BASE_URL }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.FRONTEND_IMAGE }}:${{ steps.version.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.FRONTEND_IMAGE }}:${{ steps.version.outputs.timestamp }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  deploy-to-server:
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    name: Deploy to Tencent Cloud Server
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get version info
+        id: version
+        run: |
+          echo "sha_short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+      
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.TENCENT_SERVER_HOST }}
+          username: ${{ secrets.TENCENT_SERVER_USER }}
+          key: ${{ secrets.TENCENT_SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            # 进入应用目录
+            cd /opt/feiyue
+            
+            # 登录容器镜像仓库
+            echo "${{ secrets.TENCENT_REGISTRY_PASSWORD }}" | docker login \
+              -u ${{ secrets.TENCENT_REGISTRY_USERNAME }} \
+              --password-stdin ${{ env.REGISTRY }}
+            
+            # 拉取最新镜像
+            docker pull ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.BACKEND_IMAGE }}:${{ steps.version.outputs.sha_short }}
+            docker pull ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.FRONTEND_IMAGE }}:${{ steps.version.outputs.sha_short }}
+            
+            # 标记为 latest
+            docker tag ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.BACKEND_IMAGE }}:${{ steps.version.outputs.sha_short }} \
+              ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.BACKEND_IMAGE }}:latest
+            docker tag ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.FRONTEND_IMAGE }}:${{ steps.version.outputs.sha_short }} \
+              ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ env.FRONTEND_IMAGE }}:latest
+            
+            # 使用 docker-compose 重启服务
+            docker-compose down
+            docker-compose up -d
+            
+            # 清理旧镜像
+            docker image prune -af --filter "until=72h"
+            
+            # 检查服务状态
+            docker-compose ps
+            
+            # 等待服务就绪
+            sleep 10
+            
+            # 健康检查
+            curl -f http://localhost:8000/health || exit 1
+            
+            echo "✅ Deployment completed successfully!"
+      
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "🚀 Deployment to Tencent Cloud: SUCCESS"
+            echo "Version: ${{ steps.version.outputs.sha_short }}"
+            echo "Time: $(date)"
+          else
+            echo "❌ Deployment to Tencent Cloud: FAILED"
+          fi

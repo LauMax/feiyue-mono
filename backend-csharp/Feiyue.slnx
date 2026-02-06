@@ -1,0 +1,27 @@
+<Solution>
+  <Folder Name="/AppHost/">
+    <Project Path="AppHost/Feiyue.AppHost.csproj" />
+  </Folder>
+  <Folder Name="/ServiceDefaults/">
+    <Project Path="ServiceDefaults/ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/Services/">
+    <Folder Name="/Api/">
+      <Project Path="src/Service.Api/Service.Api.csproj" />
+    </Folder>
+    <Folder Name="/Chat/">
+      <Project Path="src/Service.Chat/Service.Chat.csproj" />
+      <Project Path="src/Service.ChatStorage/Service.ChatStorage.csproj" />
+    </Folder>
+    <Folder Name="/Match/">
+      <Project Path="src/Service.Match/Service.Match.csproj" />
+      <Project Path="src/Service.MatchStorage/Service.MatchStorage.csproj" />
+    </Folder>
+    <Folder Name="/User/">
+      <Project Path="src/Service.UserLibrary/Service.UserLibrary.csproj" />
+    </Folder>
+  </Folder>
+  <Folder Name="/Shared/">
+    <Project Path="src/Service.InternalContracts/Service.InternalContracts.csproj" />
+  </Folder>
+</Solution>

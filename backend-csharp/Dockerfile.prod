@@ -1,0 +1,52 @@
+# 生产环境Dockerfile
+# 使用多阶段构建减小镜像大小
+
+# 阶段1: 构建
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# 复制项目文件
+COPY ["src/Service.Api/Service.Api.csproj", "src/Service.Api/"]
+COPY ["src/Service.Chat/Service.Chat.csproj", "src/Service.Chat/"]
+COPY ["src/Service.Match/Service.Match.csproj", "src/Service.Match/"]
+COPY ["src/Service.UserLibrary/Service.UserLibrary.csproj", "src/Service.UserLibrary/"]
+COPY ["src/Service.MatchStorage/Service.MatchStorage.csproj", "src/Service.MatchStorage/"]
+COPY ["src/Service.ChatStorage/Service.ChatStorage.csproj", "src/Service.ChatStorage/"]
+COPY ["src/Service.InternalContracts/Service.InternalContracts.csproj", "src/Service.InternalContracts/"]
+COPY ["Directory.Build.props", "./"]
+COPY ["Directory.Packages.props", "./"]
+
+# 还原依赖
+RUN dotnet restore "src/Service.Api/Service.Api.csproj"
+
+# 复制所有源代码
+COPY src/ src/
+
+# 构建
+WORKDIR "/src/src/Service.Api"
+RUN dotnet build "Service.Api.csproj" -c Release -o /app/build
+
+# 发布
+FROM build AS publish
+RUN dotnet publish "Service.Api.csproj" -c Release -o /app/publish \
+    --no-restore \
+    /p:UseAppHost=false
+
+# 阶段2: 运行时
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+
+# 创建非root用户
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# 复制发布文件
+COPY --from=publish /app/publish .
+
+# 切换到非root用户
+USER appuser
+
+# 暴露端口
+EXPOSE 8080
+
+# 设置入口点
+ENTRYPOINT ["dotnet", "Service.Api.dll"]

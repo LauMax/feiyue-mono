@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);PIC0001;PIC0002;PIC0003;PIC0004;PIC0007;PIC0008;PIC0030;PIC0032;PIC0033;PIC0039;PIC0040;PIC0043;PIC0049;PIC0061;PIC0077;PIC0083;PIC0088;PIC0089;PIC0105;PIC0114;PIC0115;PIC0121;PIC0126;PIC0177;PIC0178;PIC0192;PIC0198;PIC0218;PIC0221;PIC0225;PIC0228;PIC0186</NoWarn>
+    <NoWarn>$(NoWarn);IDISP001;IDISP003</NoWarn>
+    <NoWarn>$(NoWarn);RCS1238</NoWarn>
+    <NoWarn>$(NoWarn);RS0030</NoWarn>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Feiyue.Formatter</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="System.Collections.Immutable" />
+    <Using Include="System.Diagnostics" />
+    <Using Include="System.Globalization" />
+    <Using Include="System.Text.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    <PackageReference Include="System.CommandLine" Version="2.0.2" />
+  </ItemGroup>
+</Project>

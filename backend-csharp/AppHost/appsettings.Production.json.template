@@ -1,0 +1,13 @@
+{
+  "ConnectionStrings": {
+    "feiyue": "mongodb://<your-username>:<your-password>@<your-tencent-mongodb-host>:27017/feiyue?authSource=admin&ssl=true",
+    "redis": "<your-tencent-redis-host>:6379,password=<your-redis-password>,ssl=True"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Aspire": "Information"
+    }
+  }
+}

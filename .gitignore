@@ -39,12 +39,29 @@ yarn-error.log*
 .env.staging
 *.env
 
+# Aspire development settings (may contain sensitive connection strings)
+**/appsettings.Development.json
+**/appsettings.Local.json
+
 # Database
 *.db
 *.db-shm
 *.db-wal
 *.sqlite
 *.sqlite3
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+!terraform.tfvars.example
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
 
 # Python
 __pycache__/

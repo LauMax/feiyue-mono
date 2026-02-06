@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: feiyue-api
+  namespace: feiyue-prod
+  labels:
+    app: feiyue-api
+spec:
+  # LoadBalancer 类型会自动创建腾讯云负载均衡器
+  type: LoadBalancer
+  
+  selector:
+    app: feiyue-api
+  
+  ports:
+    - name: http
+      port: 80          # 外部访问端口
+      targetPort: 8080  # 容器端口
+      protocol: TCP
+  
+  # 会话保持（可选）
+  sessionAffinity: None

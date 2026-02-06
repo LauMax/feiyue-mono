@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>Service.Api</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../ServiceDefaults/ServiceDefaults.csproj" />
+    <ProjectReference Include="../Service.Chat/Service.Chat.csproj" />
+    <ProjectReference Include="../Service.ChatStorage/Service.ChatStorage.csproj" />
+    <ProjectReference Include="../Service.InternalContracts/Service.InternalContracts.csproj" />
+    <ProjectReference Include="../Service.Match/Service.Match.csproj" />
+    <ProjectReference Include="../Service.MatchStorage/Service.MatchStorage.csproj" />
+    <ProjectReference Include="../Service.UserLibrary/Service.UserLibrary.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.MongoDB.Driver" Version="13.0.0" />
+    <PackageReference Include="Aspire.StackExchange.Redis" Version="13.0.0" />
+  </ItemGroup>
+</Project>

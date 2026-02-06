@@ -1,0 +1,16 @@
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Feiyue.Formatter.DocTypes;
+
+namespace Feiyue.Formatter.CSharp.SyntaxPrinter.SyntaxNodePrinters;
+
+internal static class LocalDeclarationStatement
+{
+    public static Doc Print(LocalDeclarationStatementSyntax node, PrintingContext context) =>
+        Doc.Concat(
+            ExtraNewLines.Print(node),
+            Token.PrintWithSuffix(node.AwaitKeyword, " ", context),
+            Token.PrintWithSuffix(node.UsingKeyword, " ", context),
+            Modifiers.Print(node.Modifiers, context),
+            VariableDeclaration.Print(node.Declaration, context),
+            Token.Print(node.SemicolonToken, context));
+}

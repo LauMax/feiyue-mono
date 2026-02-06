@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Service.Match</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Service.InternalContracts/Service.InternalContracts.csproj" />
+    <ProjectReference Include="../Service.MatchStorage/Service.MatchStorage.csproj" />
+    <ProjectReference Include="../Service.UserLibrary/Service.UserLibrary.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+</Project>

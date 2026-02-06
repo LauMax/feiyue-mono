@@ -1,0 +1,13 @@
+{
+  "ConnectionStrings": {
+    "feiyue": "mongodb://localhost:27017/feiyue",
+    "redis": "localhost:6379"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Aspire": "Information"
+    }
+  }
+}

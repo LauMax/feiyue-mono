@@ -1,0 +1,10 @@
+Feiyue.AppHost|AppHost|AppHost/Feiyue.AppHost.csproj
+Feiyue.Formatter|tools/Formatter|tools/Formatter/Feiyue.Formatter.csproj
+Service.Api|src/Service.Api|src/Service.Api/Service.Api.csproj
+Service.ChatStorage|src/Service.ChatStorage|src/Service.ChatStorage/Service.ChatStorage.csproj
+Service.Chat|src/Service.Chat|src/Service.Chat/Service.Chat.csproj
+Service.InternalContracts|src/Service.InternalContracts|src/Service.InternalContracts/Service.InternalContracts.csproj
+Service.MatchStorage|src/Service.MatchStorage|src/Service.MatchStorage/Service.MatchStorage.csproj
+Service.Match|src/Service.Match|src/Service.Match/Service.Match.csproj
+Service.UserLibrary|src/Service.UserLibrary|src/Service.UserLibrary/Service.UserLibrary.csproj
+ServiceDefaults|ServiceDefaults|ServiceDefaults/ServiceDefaults.csproj

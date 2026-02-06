@@ -1,0 +1,47 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio code coverage results
+*.coverage
+*.coveragexml
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Visual Studio Code
+.vscode/
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Turbo Build Cache
+.turbo-build-cache/
+.turbo-build-commit
+
+# Aspire
+.aspire/
+
+# Environment and secrets
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json.template
+!appsettings.Production.json.template
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# macOS
+.DS_Store

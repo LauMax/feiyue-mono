@@ -1,0 +1,17 @@
+Feiyue.AppHost|..ServiceDefaultsServiceDefaults
+Feiyue.AppHost|..srcService.ApiService.Api
+Service.Api|Service.Chat
+Service.Api|Service.ChatStorage
+Service.Api|Service.InternalContracts
+Service.Api|Service.Match
+Service.Api|Service.MatchStorage
+Service.Api|Service.UserLibrary
+Service.Api|ServiceDefaults
+Service.ChatStorage|Service.InternalContracts
+Service.Chat|Service.ChatStorage
+Service.Chat|Service.InternalContracts
+Service.MatchStorage|Service.InternalContracts
+Service.Match|Service.InternalContracts
+Service.Match|Service.MatchStorage
+Service.Match|Service.UserLibrary
+Service.UserLibrary|Service.InternalContracts
