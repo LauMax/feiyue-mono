@@ -38,6 +38,26 @@ internal sealed class ChatService : IChatService
         await _chatStorage.CloseRoomAsync(roomId, cancellationToken);
     }
 
+    public async Task<bool> IsUserInRoomAsync(string roomId, string userId, CancellationToken cancellationToken = default)
+    {
+        var room = await _chatStorage.GetRoomAsync(roomId, cancellationToken);
+        if (room is null)
+            return false;
+
+        return room.User1Id == userId || room.User2Id == userId;
+    }
+
+    public async Task<bool> EndRoomAsync(string roomId, CancellationToken cancellationToken = default)
+    {
+        var room = await _chatStorage.GetRoomAsync(roomId, cancellationToken);
+        if (room is null)
+            return false;
+
+        _logger.LogInformation("Ending chat room {RoomId}", roomId);
+        await _chatStorage.CloseRoomAsync(roomId, cancellationToken);
+        return true;
+    }
+
     public async Task<ChatMessage> SendMessageAsync(string roomId, string senderId, string content, CancellationToken cancellationToken = default)
     {
         var message = new ChatMessage(Id: Guid.NewGuid().ToString(), RoomId: roomId, SenderId: senderId, Content: content, MessageType: "text", SentAt: DateTimeOffset.UtcNow);

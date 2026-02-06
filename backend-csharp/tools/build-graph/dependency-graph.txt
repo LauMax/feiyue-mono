@@ -11,6 +11,7 @@ Service.ChatStorage|Service.InternalContracts
 Service.Chat|Service.ChatStorage
 Service.Chat|Service.InternalContracts
 Service.MatchStorage|Service.InternalContracts
+Service.Match|Service.Chat
 Service.Match|Service.InternalContracts
 Service.Match|Service.MatchStorage
 Service.Match|Service.UserLibrary

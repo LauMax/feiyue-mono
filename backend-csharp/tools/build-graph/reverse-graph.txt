@@ -3,6 +3,7 @@
 Service.ChatStorage|Service.Api
 Service.ChatStorage|Service.Chat
 Service.Chat|Service.Api
+Service.Chat|Service.Match
 Service.InternalContracts|Service.Api
 Service.InternalContracts|Service.Chat
 Service.InternalContracts|Service.ChatStorage

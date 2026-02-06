@@ -22,7 +22,7 @@ public sealed class ChatStorage : IChatStorage
 
     public async Task<ChatRoom> CreateRoomAsync(string user1Id, string user2Id, CancellationToken cancellationToken = default)
     {
-        var room = new ChatRoom(Id: Guid.NewGuid().ToString(), User1Id: user1Id, User2Id: user2Id, CreatedAt: DateTime.UtcNow, ClosedAt: null, Status: "active");
+        var room = new ChatRoom(Id: Guid.NewGuid().ToString(), User1Id: user1Id, User2Id: user2Id, Story: null, Status: "active", CreatedAt: DateTimeOffset.UtcNow, ClosedAt: null);
         await _chatRooms.InsertOneAsync(room, null, cancellationToken);
         return room;
     }
@@ -56,8 +56,7 @@ public sealed class ChatStorage : IChatStorage
 
     public async Task<IReadOnlyList<ChatMessage>> GetMessagesAsync(string roomId, int limit = 50, CancellationToken cancellationToken = default)
     {
-        var messages = await _chatMessages.Find(x => x.RoomId == roomId).SortByDescending(x => x.SentAt).Limit(limit).ToListAsync(cancellationToken);
-        messages.Reverse(); // 返回时间正序
+        var messages = await _chatMessages.Find(x => x.RoomId == roomId).Limit(limit).ToListAsync(cancellationToken);
         return messages;
     }
 }

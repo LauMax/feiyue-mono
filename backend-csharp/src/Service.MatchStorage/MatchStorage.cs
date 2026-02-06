@@ -102,7 +102,17 @@ public sealed class MatchStorage : IMatchStorage
         var vipCount = await db.SortedSetLengthAsync(VipQueueKey);
         var standardCount = await db.ListLengthAsync(StandardQueueKey);
 
-        return new QueueStats(VipCount: (int)vipCount, StandardCount: (int)standardCount, TotalCount: (int)(vipCount + standardCount));
+        // 获取所有条目以统计性别
+        var allEntries = await GetAllEntriesAsync(cancellationToken);
+        var maleWaiting = allEntries.Count(e => e.Gender == "male");
+        var femaleWaiting = allEntries.Count(e => e.Gender == "female");
+
+        return new QueueStats(
+            VipCount: (int)vipCount,
+            StandardCount: (int)standardCount,
+            TotalCount: (int)(vipCount + standardCount),
+            MaleWaiting: maleWaiting,
+            FemaleWaiting: femaleWaiting);
     }
 
     public async Task RemoveFromQueueAsync(string userId, CancellationToken cancellationToken = default)
@@ -159,6 +169,17 @@ public sealed class MatchStorage : IMatchStorage
     {
         var request = await _matchRequests.Find(x => x.UserId == userId).FirstOrDefaultAsync(cancellationToken);
         return request;
+    }
+
+    public async Task<MatchRequest?> GetMatchRequestByIdAsync(string matchId, CancellationToken cancellationToken = default)
+    {
+        var request = await _matchRequests.Find(x => x.Id == matchId).FirstOrDefaultAsync(cancellationToken);
+        return request;
+    }
+
+    public async Task UpdateMatchRequestAsync(MatchRequest request, CancellationToken cancellationToken = default)
+    {
+        await _matchRequests.ReplaceOneAsync(x => x.Id == request.Id, request, new ReplaceOptions { IsUpsert = false }, cancellationToken);
     }
 
     public async Task DeleteMatchRequestAsync(string userId, CancellationToken cancellationToken = default)
@@ -237,6 +258,12 @@ public sealed class MatchStorage : IMatchStorage
         }
 
         return entries;
+    }
+
+    public async Task<IReadOnlyList<MatchQueueEntry>> GetQueueByGenderAsync(string gender, CancellationToken cancellationToken = default)
+    {
+        var allEntries = await GetAllEntriesAsync(cancellationToken);
+        return allEntries.Where(e => e.Gender == gender).OrderBy(e => e.EnqueuedAt).ToArray();
     }
 }
 

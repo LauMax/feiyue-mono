@@ -3,6 +3,7 @@
     <RootNamespace>Service.Match</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Service.Chat/Service.Chat.csproj" />
     <ProjectReference Include="../Service.InternalContracts/Service.InternalContracts.csproj" />
     <ProjectReference Include="../Service.MatchStorage/Service.MatchStorage.csproj" />
     <ProjectReference Include="../Service.UserLibrary/Service.UserLibrary.csproj" />

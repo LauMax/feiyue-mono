@@ -33,6 +33,7 @@ public class UserController : ControllerBase
         var user = await _userStorage.GetUserByIdAsync(userId);
         if (user is null)
             return NotFound();
+
         return Ok(user);
     }
 
@@ -59,6 +60,7 @@ public class UserController : ControllerBase
         var profile = await _userStorage.GetUserProfileAsync(userId);
         if (profile is null)
             return NotFound();
+
         return Ok(profile);
     }
 }

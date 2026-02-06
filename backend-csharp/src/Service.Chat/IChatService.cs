@@ -17,6 +17,12 @@ public interface IChatService
     /// <summary>关闭聊天室</summary>
     Task CloseRoomAsync(string roomId, CancellationToken cancellationToken = default);
 
+    /// <summary>检查用户是否在房间内</summary>
+    Task<bool> IsUserInRoomAsync(string roomId, string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>结束聊天室</summary>
+    Task<bool> EndRoomAsync(string roomId, CancellationToken cancellationToken = default);
+
     /// <summary>发送消息</summary>
     Task<ChatMessage> SendMessageAsync(string roomId, string senderId, string content, CancellationToken cancellationToken = default);
 
