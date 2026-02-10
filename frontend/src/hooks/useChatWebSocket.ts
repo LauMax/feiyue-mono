@@ -10,8 +10,8 @@ interface Message {
 }
 
 interface WebSocketMessage {
-  type: 'connected' | 'message' | 'error';
-  data?: Message;
+  type: 'connected' | 'message' | 'user_left' | 'error';
+  data?: Message | { userId: string; message: string };
   message?: string;
 }
 
@@ -20,6 +20,7 @@ interface UseChatWebSocketOptions {
   userId: string;
   onMessage: (message: Message) => void;
   onConnect?: () => void;
+  onPartnerLeft?: () => void;
   onError?: (error: string) => void;
 }
 
@@ -28,6 +29,7 @@ export function useChatWebSocket({
   userId,
   onMessage,
   onConnect,
+  onPartnerLeft,
   onError,
 }: UseChatWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
@@ -39,9 +41,11 @@ export function useChatWebSocket({
   // 用 ref 稳定回调引用，避免 connect 函数每次渲染都变化导致重连循环
   const onMessageRef = useRef(onMessage);
   const onConnectRef = useRef(onConnect);
+  const onPartnerLeftRef = useRef(onPartnerLeft);
   const onErrorRef = useRef(onError);
   onMessageRef.current = onMessage;
   onConnectRef.current = onConnect;
+  onPartnerLeftRef.current = onPartnerLeft;
   onErrorRef.current = onError;
 
   const connect = useCallback(() => {
@@ -70,7 +74,10 @@ export function useChatWebSocket({
         console.log('[WebSocket] Received:', wsMessage);
 
         if (wsMessage.type === 'message' && wsMessage.data) {
-          onMessageRef.current(wsMessage.data);
+          onMessageRef.current(wsMessage.data as Message);
+        } else if (wsMessage.type === 'user_left') {
+          console.log('[WebSocket] Partner left the chat');
+          onPartnerLeftRef.current?.();
         } else if (wsMessage.type === 'error') {
           const errorMsg = wsMessage.message || 'Unknown error';
           setError(errorMsg);

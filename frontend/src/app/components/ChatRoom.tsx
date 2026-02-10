@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Card } from "./ui/card";
-import { Send, LogOut, User, Sparkles, Info, Lightbulb } from "lucide-react";
+import { Send, LogOut, User, Sparkles, Info, Lightbulb, UserX } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
 import { useChatWebSocket } from "../../hooks/useChatWebSocket";
 import type { Story } from "../App";
@@ -69,6 +69,7 @@ export function ChatRoom({ story, role, userProfile, partnerProfile, onExit, use
   ]);
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [partnerLeft, setPartnerLeft] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // WebSocket connection
@@ -105,6 +106,17 @@ export function ChatRoom({ story, role, userProfile, partnerProfile, onExit, use
     },
     onConnect: () => {
       console.log('[ChatRoom] WebSocket connected');
+    },
+    onPartnerLeft: () => {
+      console.log('[ChatRoom] Partner left the chat');
+      setPartnerLeft(true);
+      setMessages(prev => [...prev, {
+        id: `partner-left-${Date.now()}`,
+        sender: "system",
+        content: "对方已离开对话",
+        timestamp: new Date(),
+        isStoryClue: false
+      }]);
     },
     onError: (error) => {
       console.error('[ChatRoom] WebSocket error:', error);
@@ -157,7 +169,7 @@ export function ChatRoom({ story, role, userProfile, partnerProfile, onExit, use
   // WebSocket 替代了轮询，所以移除轮询逻辑
 
   const handleSend = async () => {
-    if (!inputValue.trim() || isSending || !isConnected) return;
+    if (!inputValue.trim() || isSending || !isConnected || partnerLeft) return;
 
     setIsSending(true);
     const messageText = inputValue;
@@ -445,16 +457,32 @@ export function ChatRoom({ story, role, userProfile, partnerProfile, onExit, use
           <div className="flex-1 bg-white/5 backdrop-blur-lg border-white/20 sm:rounded-2xl border-0 sm:border p-3 sm:p-4 overflow-hidden flex flex-col">
             <div className="flex-1 overflow-y-auto space-y-3 sm:space-y-4">
               {messages.map((message) => {
-                // 系统消息（故事线索）
+                // 系统消息（故事线索 或 通知）
                 if (message.sender === "system") {
+                  const isPartnerLeftMsg = message.content === "对方已离开对话";
                   return (
                     <div key={message.id} className="flex justify-center">
-                      <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-lg border border-purple-400/30 rounded-2xl px-4 py-3 max-w-[85%] sm:max-w-[70%]">
+                      <div className={`backdrop-blur-lg rounded-2xl px-4 py-3 max-w-[85%] sm:max-w-[70%] ${
+                        isPartnerLeftMsg
+                          ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-400/30"
+                          : "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-400/30"
+                      }`}>
                         <div className="flex items-center gap-2 mb-1">
-                          <Lightbulb className="w-4 h-4 text-yellow-400" />
-                          <span className="text-purple-200 text-xs font-semibold">故事线索</span>
+                          {isPartnerLeftMsg ? (
+                            <>
+                              <UserX className="w-4 h-4 text-amber-400" />
+                              <span className="text-amber-200 text-xs font-semibold">系统通知</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lightbulb className="w-4 h-4 text-yellow-400" />
+                              <span className="text-purple-200 text-xs font-semibold">故事线索</span>
+                            </>
+                          )}
                         </div>
-                        <p className="text-purple-100 text-sm italic leading-relaxed">{message.content}</p>
+                        <p className={`text-sm italic leading-relaxed ${
+                          isPartnerLeftMsg ? "text-amber-100" : "text-purple-100"
+                        }`}>{message.content}</p>
                       </div>
                     </div>
                   );
@@ -495,19 +523,30 @@ export function ChatRoom({ story, role, userProfile, partnerProfile, onExit, use
             </div>
           </div>
 
+          {/* Partner Left Banner */}
+          {partnerLeft && (
+            <div className="mx-3 sm:mx-0 mt-2 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-400/30 rounded-xl px-4 py-3 flex items-center gap-3">
+              <UserX className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-amber-200 text-sm font-medium">对方已离开对话</p>
+                <p className="text-amber-300/70 text-xs mt-0.5">你可以查看聊天记录，或点击右上角离开</p>
+              </div>
+            </div>
+          )}
+
           {/* Input Area */}
           <div className="p-3 sm:p-0 sm:pt-4 flex gap-2 bg-gradient-to-t from-slate-900 via-slate-900 to-transparent sm:bg-none">
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="输入你的消息..."
-              disabled={isSending}
+              placeholder={partnerLeft ? "对方已离开，无法发送消息" : "输入你的消息..."}
+              disabled={isSending || partnerLeft}
               className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-purple-300 focus:border-purple-400 h-11"
             />
             <Button
               onClick={handleSend}
-              disabled={isSending || !inputValue.trim()}
+              disabled={isSending || !inputValue.trim() || partnerLeft}
               className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white h-11 w-11 p-0 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSending ? (

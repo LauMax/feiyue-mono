@@ -75,6 +75,10 @@ public sealed class ChatWebSocketHandler
         }
         finally
         {
+            // 在移除连接之前，通知房间内的其他用户
+            var leaveEvent = new ChatServerEvent("user_left", new { userId, message = "对方已离开对话" });
+            await _connectionManager.BroadcastToRoomAsync(roomId, leaveEvent, CancellationToken.None, excludeUserId: userId);
+
             outputChannel.Writer.Complete();
             await writeTask;
             _connectionManager.RemoveConnection(roomId, userId);
