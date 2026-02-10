@@ -5,11 +5,11 @@
  * 环境配置：
  * - 生产环境：https://api.fei-yue.net
  * - Staging/Dev 环境：https://api-dev.fei-yue.net
- * - 本地开发：http://localhost:8000
+ * - 本地开发：http://localhost:5000
  */
 
 // 从环境变量读取 API 地址，本地开发默认使用 localhost
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050';
 
 export const apiConfig = {
   baseURL: API_BASE_URL,
@@ -24,7 +24,7 @@ export const apiConfig = {
     
     // 聊天系统
     chatSend: '/api/chat/send',
-    chatMessages: '/api/chat/messages/:roomId',
+    chatMessages: '/api/chat/room/:roomId/messages',
     roomLeave: '/api/room/leave',
     
     // 健康检查

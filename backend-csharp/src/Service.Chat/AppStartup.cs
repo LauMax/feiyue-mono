@@ -7,6 +7,7 @@ public static class AppStartup
     public static IServiceCollection AddChatService(this IServiceCollection services)
     {
         services.AddSingleton<IChatService, ChatService>();
+        services.AddSingleton<IChatProgressService, ChatProgressService>();
         return services;
     }
 }

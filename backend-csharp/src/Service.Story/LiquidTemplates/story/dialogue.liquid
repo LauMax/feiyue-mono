@@ -1,0 +1,24 @@
+Suggest natural dialogue for a character in a romantic role-play scenario.
+
+【角色】{{ character_role }}
+【故事背景】{{ story_background }}
+
+{% if tags.size > 0 %}
+【角色标签】
+{% for tag in tags %}- {{ tag }}
+{% endfor %}
+{% endif %}
+
+{% if recent_messages.size > 0 %}
+【最近对话】
+{% for msg in recent_messages %}- {{ msg.sender_role }}: {{ msg.content }}
+{% endfor %}
+{% endif %}
+
+【要求】
+- 自然真实的对话风格
+- 符合角色性格和标签设定
+- 浪漫但不过于戏剧化
+- 简洁有力（1句话）
+
+对话建议:

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Service.Chat;
+using Service.InternalContracts;
 
 namespace Service.Api.Controllers;
 
@@ -65,8 +66,30 @@ public sealed class ChatController : ControllerBase
     [HttpGet("room/{roomId}/messages")]
     public async Task<IActionResult> GetMessages(string roomId, CancellationToken cancellationToken, [FromQuery] int limit = 50)
     {
+        var room = await _chatService.GetRoomAsync(roomId, cancellationToken);
         var messages = await _chatService.GetMessagesAsync(roomId, limit, cancellationToken);
-        return Ok(messages);
+
+        // 转换为前端期望的格式: role/message/timestamp/isStoryClue
+        var result = messages.Select(m => new
+        {
+            id = m.Id,
+            role = MapSenderToRole(m.SenderId, room),
+            message = m.Content,
+            timestamp = m.SentAt.ToUnixTimeMilliseconds(),
+            isStoryClue = m.MessageType == "system"
+        });
+
+        return Ok(result);
+    }
+
+    /// <summary>将 senderId 映射为前端角色 A/B/system</summary>
+    private static string MapSenderToRole(string senderId, ChatRoom? room)
+    {
+        if (senderId == "system")
+            return "system";
+        if (room is null)
+            return "A";
+        return senderId == room.User1Id ? "A" : "B";
     }
 }
 

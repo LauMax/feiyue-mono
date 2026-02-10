@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Service.Chat;
 using Service.InternalContracts;
 using Service.MatchStorage;
+using Service.StoryGeneration;
 
 namespace Service.Match;
 
@@ -11,12 +12,14 @@ internal sealed class MatchService : IMatchService
     private readonly ILogger<MatchService> _logger;
     private readonly IMatchStorage _matchStorage;
     private readonly IChatService _chatService;
+    private readonly IStoryGenerationService _storyService;
 
-    public MatchService(ILogger<MatchService> logger, IMatchStorage matchStorage, IChatService chatService)
+    public MatchService(ILogger<MatchService> logger, IMatchStorage matchStorage, IChatService chatService, IStoryGenerationService storyService)
     {
         _logger = logger;
         _matchStorage = matchStorage;
         _chatService = chatService;
+        _storyService = storyService;
     }
 
     public async Task<MatchResult> CreateMatchRequestAsync(MatchUserProfile profile, Story? story, string selectedRole, CancellationToken cancellationToken = default)
@@ -77,15 +80,22 @@ internal sealed class MatchService : IMatchService
             // 获取对方的匹配请求
             var partnerRequest = await _matchStorage.GetMatchRequestAsync(bestMatch.UserId, cancellationToken);
 
-            // 决定使用哪个 story
-            var finalStory = DetermineStory(story, partnerRequest?.Story);
+            // 决定使用哪个 story（双方都没有时 AI 生成）
+            var combinedTags = (profile.Tags ?? [])
+                .Concat(partnerRequest?.Profile?.Tags ?? [])
+                .Distinct()
+                .ToArray();
+            var finalStory = await DetermineStoryAsync(story, partnerRequest?.Story, combinedTags, cancellationToken);
 
             // 创建聊天室
-            var room = await _chatService.CreateRoomAsync(userId, bestMatch.UserId, cancellationToken);
+            var room = await _chatService.CreateRoomAsync(userId, bestMatch.UserId, finalStory, isVirtual: false, cancellationToken);
 
-            // 从队列移除两个用户
-            await _matchStorage.DequeueAsync(userId, cancellationToken);
-            await _matchStorage.DequeueAsync(bestMatch.UserId, cancellationToken);
+            // 异步发送开场叙述（fire-and-forget，不阻塞匹配响应）
+            _ = SendStorySeedAsync(room.Id, finalStory, cancellationToken);
+
+            // 从 Redis 队列移除两个用户（不删除 MongoDB 记录）
+            await _matchStorage.RemoveFromQueueAsync(userId, cancellationToken);
+            await _matchStorage.RemoveFromQueueAsync(bestMatch.UserId, cancellationToken);
 
             // 更新匹配状态
             var matchedRequest = request with
@@ -155,7 +165,14 @@ internal sealed class MatchService : IMatchService
         {
             var waitTime = (int)(DateTimeOffset.UtcNow - request.RequestedAt).TotalSeconds;
 
-            // 检查是否超时（5分钟）
+            // 超过60秒没匹配到 → 自动分配虚拟人
+            if (waitTime >= 60)
+            {
+                _logger.LogInformation("Match {MatchId} waited {WaitTime}s, assigning virtual person", matchId, waitTime);
+                return await MatchWithVirtualPersonAsync(request, cancellationToken);
+            }
+
+            // 检查是否超时（5分钟 → 彻底失败）
             if (waitTime > 300)
             {
                 await CancelMatchAsync(matchId, cancellationToken);
@@ -221,8 +238,8 @@ internal sealed class MatchService : IMatchService
         if (request is null)
             return false;
 
-        // 从队列移除
-        await _matchStorage.DequeueAsync(request.UserId, cancellationToken);
+        // 从 Redis 队列移除（不删除 MongoDB 记录）
+        await _matchStorage.RemoveFromQueueAsync(request.UserId, cancellationToken);
 
         // 更新状态
         var cancelledRequest = request with
@@ -305,9 +322,9 @@ internal sealed class MatchService : IMatchService
             return null;
         }
 
-        // 从队列中移除两个用户
-        await _matchStorage.DequeueAsync(userId, cancellationToken);
-        await _matchStorage.DequeueAsync(compatibleEntry.UserId, cancellationToken);
+        // 从 Redis 队列移除两个用户（不删除 MongoDB 记录）
+        await _matchStorage.RemoveFromQueueAsync(userId, cancellationToken);
+        await _matchStorage.RemoveFromQueueAsync(compatibleEntry.UserId, cancellationToken);
 
         _logger.LogInformation("Matched users {UserId1} and {UserId2}", userId, compatibleEntry.UserId);
 
@@ -329,7 +346,7 @@ internal sealed class MatchService : IMatchService
         return gender == "male" ? "female" : "male";
     }
 
-    private static Story? DetermineStory(Story? story1, Story? story2)
+    private async Task<Story?> DetermineStoryAsync(Story? story1, Story? story2, IReadOnlyList<string> combinedTags, CancellationToken cancellationToken)
     {
         // 优先使用有效的故事
         if (story1 is not null && !string.IsNullOrEmpty(story1.Background))
@@ -338,7 +355,42 @@ internal sealed class MatchService : IMatchService
         if (story2 is not null && !string.IsNullOrEmpty(story2.Background))
             return story2;
 
-        return null;
+        // 双方都没有故事 → AI 生成（失败会自动 fallback）
+        _logger.LogInformation("No user story found, generating via AI. Tags: {Tags}.", string.Join(',', combinedTags));
+        var context = new StoryGenerationContext(
+            AgeGroup: null,
+            GenderPreference: null,
+            Tags: combinedTags,
+            Description: null,
+            MaleRole: null,
+            FemaleRole: null);
+        return await _storyService.GenerateCompleteStoryAsync(context, cancellationToken);
+    }
+
+    /// <summary>
+    /// 异步发送开场叙述 — 匹配成功后作为第一条 system 消息。
+    /// </summary>
+    private async Task SendStorySeedAsync(string roomId, Story? story, CancellationToken cancellationToken)
+    {
+        if (story is null)
+            return;
+
+        try
+        {
+            var seedContext = new StorySeedContext(
+                story.Background,
+                Array.Empty<string>(),
+                story.MaleRole,
+                story.FemaleRole);
+
+            var seed = await _storyService.GenerateStorySeedAsync(seedContext, cancellationToken);
+            await _chatService.SendSystemMessageAsync(roomId, seed, "seed", cancellationToken);
+            _logger.LogInformation("Story seed sent to room {RoomId}.", roomId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send story seed for room {RoomId}.", roomId);
+        }
     }
 
     private MatchQueueEntry? FindBestMatch(MatchQueueEntry newUser, IReadOnlyList<MatchQueueEntry> candidates)
@@ -419,5 +471,81 @@ internal sealed class MatchService : IMatchService
 
         // 双方都满足才能匹配
         return user1Compatible && user2Compatible;
+    }
+
+    /// <summary>
+    /// 匹配虚拟人 - 等待超过 20 秒后自动分配。
+    ///
+    /// 虚拟人不占用真实用户队列，直接创建一个 IsVirtual=true 的房间。
+    /// 前端通过 WebSocket 连接后，ChatWebSocketHandler 会根据 IsVirtual
+    /// 路由到 VirtualChatSession（当前 Mock，后续接入 Python AI 后端）。
+    /// </summary>
+    private async Task<MatchStatusResult> MatchWithVirtualPersonAsync(MatchRequest request, CancellationToken cancellationToken)
+    {
+        // 生成虚拟人信息
+        var oppositeGender = request.Gender == "male" ? "female" : "male";
+        var virtualProfile = GenerateVirtualProfile(oppositeGender);
+
+        // 创建虚拟人房间（IsVirtual = true）
+        var room = await _chatService.CreateRoomAsync(request.UserId, virtualProfile.Id, story: null, isVirtual: true, cancellationToken);
+
+        // 从 Redis 队列移除（不删除 MongoDB 记录）
+        await _matchStorage.RemoveFromQueueAsync(request.UserId, cancellationToken);
+
+        // 更新匹配状态
+        var matchedRequest = request with
+        {
+            Status = "matched",
+            RoomId = room.Id,
+            MatchedAt = DateTimeOffset.UtcNow
+        };
+        await _matchStorage.UpdateMatchRequestAsync(matchedRequest, cancellationToken);
+
+        _logger.LogInformation("User {UserId} matched with virtual person {VirtualId}", request.UserId, virtualProfile.Id);
+
+        // 构造虚拟人的 MatchUserProfile 以返回给前端
+        var virtualPartnerProfile = new MatchUserProfile(
+            Gender: oppositeGender,
+            AgeGroup: virtualProfile.AgeGroup,
+            Height: null,
+            Weight: null,
+            Tags: ["虚拟人"],
+            Description: virtualProfile.Personality);
+
+        return new MatchStatusResult(
+            Success: true,
+            Data: new MatchStatusData(
+                UserId: request.UserId,
+                AnonymousId: request.AnonymousId,
+                MatchId: request.Id,
+                Status: "matched",
+                RoomId: room.Id,
+                Story: request.Story,
+                YourRole: request.SelectedRole,
+                YourRoleInfo: request.SelectedRole == "A" ? request.Story?.MaleRole : request.Story?.FemaleRole,
+                PartnerRole: request.SelectedRole == "A" ? "B" : "A",
+                PartnerProfile: virtualPartnerProfile,
+                WaitTime: null,
+                Message: "已为你匹配到聊天对象，开始聊天吧！"),
+            Error: null);
+    }
+
+    /// <summary>生成虚拟人档案 - 后续可从数据库读取预设虚拟人列表</summary>
+    private static VirtualPersonProfile GenerateVirtualProfile(string gender)
+    {
+        var id = $"virtual_{Guid.NewGuid().ToString()[..8]}";
+        var names = gender == "female"
+            ? new[] { "小雪", "小月", "小星", "小雨", "小梦" }
+            : new[] { "小明", "小杰", "小辉", "小宇", "小风" };
+
+        var name = names[Random.Shared.Next(names.Length)];
+
+        return new VirtualPersonProfile(
+            Id: id,
+            Name: name,
+            Gender: gender,
+            AgeGroup: "18-23",
+            Personality: "温柔体贴，善于倾听",
+            AvatarUrl: "");
     }
 }

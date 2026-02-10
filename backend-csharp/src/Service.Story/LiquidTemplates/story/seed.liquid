@@ -1,0 +1,27 @@
+Based on the following context, create an engaging opening narrative for a romantic role-play scenario.
+
+【故事背景】
+{{ background }}
+
+{% if tags.size > 0 %}
+【氛围标签】
+{% for tag in tags %}- {{ tag }}
+{% endfor %}
+{% endif %}
+
+{% if male_role %}
+【男主角】{{ male_role.name }} - {{ male_role.personality }}
+{% endif %}
+
+{% if female_role %}
+【女主角】{{ female_role.name }} - {{ female_role.personality }}
+{% endif %}
+
+【要求】
+- 创造富有氛围感的开场叙述
+- 设定浪漫的情绪基调
+- 简洁有力（2-3句话）
+- 创造期待感和悬念
+- 使用第二人称，让玩家沉浸其中
+
+开场叙述:

@@ -30,7 +30,7 @@ class ApiClient implements Api {
   constructor() {
     this.api = realApi as any;
     console.log(`[API] Using REAL API`);
-    console.log(`[API] Base URL: ${import.meta.env.VITE_API_URL || 'https://api.fei-yue.net'}`);
+    console.log(`[API] Base URL: ${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}`);
   }
 
   /**

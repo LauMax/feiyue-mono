@@ -4,6 +4,7 @@ import { Input } from "./ui/input";
 import { Card } from "./ui/card";
 import { Send, LogOut, User, Sparkles, Info, Lightbulb } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
+import { useChatWebSocket } from "../../hooks/useChatWebSocket";
 import type { Story } from "../App";
 import type { UserProfileData } from "./UserProfile";
 import api from "../../api";
@@ -70,6 +71,46 @@ export function ChatRoom({ story, role, userProfile, partnerProfile, onExit, use
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // WebSocket connection
+  const { isConnected, sendMessage } = useChatWebSocket({
+    roomId,
+    userId,
+    onMessage: (message) => {
+      console.log('[WebSocket] New message received:', message);
+      
+      // 检查是否已存在该消息（避免重复）
+      setMessages(prev => {
+        if (prev.some(m => m.id === message.id)) {
+          return prev;
+        }
+        
+        // 将 senderId 映射到 sender role
+        let sender: "A" | "B" | "system";
+        if (message.senderId === "system" || message.messageType === "system") {
+          sender = "system";
+        } else if (message.senderId === userId) {
+          sender = role;
+        } else {
+          sender = role === "A" ? "B" : "A";
+        }
+        
+        return [...prev, {
+          id: message.id,
+          sender,
+          content: message.content,
+          timestamp: new Date(message.sentAt),
+          isStoryClue: message.messageType === "system"
+        }];
+      });
+    },
+    onConnect: () => {
+      console.log('[ChatRoom] WebSocket connected');
+    },
+    onError: (error) => {
+      console.error('[ChatRoom] WebSocket error:', error);
+    }
+  });
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -113,96 +154,35 @@ export function ChatRoom({ story, role, userProfile, partnerProfile, onExit, use
     loadMessages();
   }, [roomId]);
 
-  // 轮询获取新消息（只获取对方消息和系统剧情线索，不获取自己的消息避免重复）
-  useEffect(() => {
-    if (!roomId) return;
-
-    const pollMessages = async () => {
-      try {
-        const result = await api.chatMessages(roomId);
-        if (result.success && result.data) {
-          const serverMessages = Array.isArray(result.data) ? result.data : result.data.messages;
-          
-          // 筛选新消息：只接收对方消息和系统消息，不接收自己的消息（避免与乐观更新重复）
-          const existingIds = new Set(messages.map(m => m.id));
-          const partnerRole = role === "A" ? "B" : "A";
-          const newMessages = serverMessages.filter(msg => 
-            !existingIds.has(msg.id) && 
-            (msg.role === partnerRole || msg.role === 'system')
-          );
-          
-          if (newMessages.length > 0) {
-            const formattedMessages = newMessages.map(msg => ({
-              id: msg.id,
-              sender: msg.role,
-              content: msg.message,
-              timestamp: new Date(msg.timestamp),
-              isStoryClue: msg.isStoryClue || false
-            }));
-            
-            setMessages(prev => [...prev, ...formattedMessages]);
-          }
-        }
-      } catch (error) {
-        console.error("轮询消息失败:", error);
-      }
-    };
-
-    const pollInterval = setInterval(pollMessages, 2000);
-    return () => clearInterval(pollInterval);
-  }, [roomId, messages, role]);
-
-
+  // WebSocket 替代了轮询，所以移除轮询逻辑
 
   const handleSend = async () => {
-    if (!inputValue.trim() || isSending) return;
+    if (!inputValue.trim() || isSending || !isConnected) return;
 
     setIsSending(true);
     const messageText = inputValue;
+    setInputValue("");
+
+    // 通过 WebSocket 发送消息
+    const sent = sendMessage(messageText);
     
-    // 立即添加到本地 (乐观更新)
+    if (!sent) {
+      console.error("WebSocket not connected, cannot send message");
+      alert("连接已断开，请刷新页面重试");
+      setInputValue(messageText); // 恢复输入
+      setIsSending(false);
+      return;
+    }
+
+    // 乐观更新：立即显示自己的消息
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: `temp-${Date.now()}`,
       sender: role,
       content: messageText,
       timestamp: new Date()
     };
     setMessages(prev => [...prev, newMessage]);
-    setInputValue("");
-
-    try {
-      // 调用真实 API 发送消息
-      const result = await api.chatSend({
-        roomId,
-        userId,
-        message: messageText,
-      });
-
-      if (result.success) {
-        // 如果后端返回了剧情线索，添加到消息列表
-        if (result.data?.storyClue) {
-          const clueMessage: Message = {
-            id: result.data.storyClue.id,
-            sender: "system",
-            content: result.data.storyClue.message,
-            timestamp: new Date(result.data.storyClue.timestamp),
-            isStoryClue: true
-          };
-          setMessages(prev => [...prev, clueMessage]);
-        }
-      } else {
-        console.error("发送消息失败:", result.error);
-        // 移除失败的乐观更新
-        setMessages(prev => prev.filter(m => m.id !== newMessage.id));
-        alert("发送消息失败，请重试");
-      }
-    } catch (error) {
-      console.error("发送消息出错:", error);
-      // 移除失败的乐观更新
-      setMessages(prev => prev.filter(m => m.id !== newMessage.id));
-    } finally {
-      setIsSending(false);
-    }
+    setIsSending(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

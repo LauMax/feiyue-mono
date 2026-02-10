@@ -1,0 +1,29 @@
+Based on the story context and conversation, generate a brief romantic narrative clue.
+
+【故事背景】
+{{ background }}
+
+{% if tags.size > 0 %}
+【氛围标签】
+{% for tag in tags %}- {{ tag }}
+{% endfor %}
+{% endif %}
+
+{% if recent_messages.size > 0 %}
+【最近对话】
+{% for msg in recent_messages %}- {{ msg.sender_role }}: {{ msg.content }}
+{% endfor %}
+{% endif %}
+
+【触发类型】{{ trigger_instruction }}
+
+【要求】
+- 简短而精妙（1-2句话，不超过50个字）
+- 根据最近对话内容，推进故事情感走向
+- 不打断对话自然流程，自然融入当前话题
+- 增强氛围感，使用感官细节描写
+- 可以引入小道具、环境变化或巧合事件
+- 使用第三人称叙述，如"突然..."、"这时..."
+- 不要让角色说话，只描述环境或氛围变化
+
+剧情线索:

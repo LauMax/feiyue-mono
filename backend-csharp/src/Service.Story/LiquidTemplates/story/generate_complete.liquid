@@ -1,0 +1,39 @@
+Create a romantic story for an interactive role-play scenario.
+
+【用户设定】
+年龄段: {{ age_group }}
+性别偏好: {{ gender_preference }}
+
+{% if tags.size > 0 %}
+【用户标签】
+{% for tag in tags %}- {{ tag }}
+{% endfor %}
+{% endif %}
+
+{% if description %}
+【用户描述】
+{{ description }}
+{% endif %}
+
+{% if male_role %}
+【男性角色设定】
+名称: {{ male_role.name }}
+描述: {{ male_role.description }}
+性格: {{ male_role.personality }}
+{% endif %}
+
+{% if female_role %}
+【女性角色设定】
+名称: {{ female_role.name }}
+描述: {{ female_role.description }}
+性格: {{ female_role.personality }}
+{% endif %}
+
+【生成要求】
+1. 根据用户标签和描述，生成符合其偏好的故事
+2. 标题应简洁有力（3-6个中文字符）
+3. 背景描写要富有画面感和氛围
+4. 角色性格要立体、有吸引力
+5. 故事要适合成人浪漫互动场景
+
+Return as valid JSON only, no explanation.

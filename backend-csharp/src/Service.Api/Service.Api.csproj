@@ -10,6 +10,7 @@
     <ProjectReference Include="../Service.Match/Service.Match.csproj" />
     <ProjectReference Include="../Service.MatchStorage/Service.MatchStorage.csproj" />
     <ProjectReference Include="../Service.UserLibrary/Service.UserLibrary.csproj" />
+    <ProjectReference Include="../Service.Story/Service.Story.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.MongoDB.Driver" Version="13.0.0" />
