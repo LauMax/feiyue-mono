@@ -114,7 +114,17 @@ export default function App() {
                 console.log(`[匹配进行中] 已等待 ${waitTimeCounter} 秒...`);
               }
             } else {
-              console.warn("查询匹配状态失败，继续轮询:", statusResult.error);
+              // 匹配请求已失败或不存在，停止轮询
+              const errorCode = statusResult.error?.code;
+              if (errorCode === 'NOT_FOUND' || errorCode === 'MATCH_CANCELLED' || errorCode === 'MATCH_TIMEOUT') {
+                console.warn("匹配已结束:", errorCode);
+                clearInterval(interval);
+                setPollIntervalRef(null);
+                setState("profile");
+                setWaitTime(0);
+              } else {
+                console.warn("查询匹配状态失败，继续轮询:", statusResult.error);
+              }
             }
           } catch (error) {
             console.error("轮询出错:", error);

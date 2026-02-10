@@ -41,6 +41,7 @@ else
 
 // API 服务 - 当前是单体，后续可以拆分为微服务
 var apiService = builder.AddProject("api", @"../src/Service.Api/Service.Api.csproj")
+    .WithHttpEndpoint(port: 5050, name: "http", isProxied: false)
     .WithReference(feiyueDb)
     .WithReference(redis);
 

@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Card } from "./ui/card";
-import { Send, LogOut, User, Sparkles, Info, Lightbulb } from "lucide-react";
+import { Send, LogOut, User, Sparkles, Info, Lightbulb, UserX } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
+import { useChatWebSocket } from "../../hooks/useChatWebSocket";
 import type { Story } from "../App";
 import type { UserProfileData } from "./UserProfile";
 import api from "../../api";
@@ -68,7 +69,59 @@ export function ChatRoom({ story, role, userProfile, partnerProfile, onExit, use
   ]);
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [partnerLeft, setPartnerLeft] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // WebSocket connection
+  const { isConnected, sendMessage } = useChatWebSocket({
+    roomId,
+    userId,
+    onMessage: (message) => {
+      console.log('[WebSocket] New message received:', message);
+      
+      // 检查是否已存在该消息（避免重复）
+      setMessages(prev => {
+        if (prev.some(m => m.id === message.id)) {
+          return prev;
+        }
+        
+        // 将 senderId 映射到 sender role
+        let sender: "A" | "B" | "system";
+        if (message.senderId === "system" || message.messageType === "system") {
+          sender = "system";
+        } else if (message.senderId === userId) {
+          sender = role;
+        } else {
+          sender = role === "A" ? "B" : "A";
+        }
+        
+        return [...prev, {
+          id: message.id,
+          sender,
+          content: message.content,
+          timestamp: new Date(message.sentAt),
+          isStoryClue: message.messageType === "system"
+        }];
+      });
+    },
+    onConnect: () => {
+      console.log('[ChatRoom] WebSocket connected');
+    },
+    onPartnerLeft: () => {
+      console.log('[ChatRoom] Partner left the chat');
+      setPartnerLeft(true);
+      setMessages(prev => [...prev, {
+        id: `partner-left-${Date.now()}`,
+        sender: "system",
+        content: "对方已离开对话",
+        timestamp: new Date(),
+        isStoryClue: false
+      }]);
+    },
+    onError: (error) => {
+      console.error('[ChatRoom] WebSocket error:', error);
+    }
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -113,96 +166,35 @@ export function ChatRoom({ story, role, userProfile, partnerProfile, onExit, use
     loadMessages();
   }, [roomId]);
 
-  // 轮询获取新消息（只获取对方消息和系统剧情线索，不获取自己的消息避免重复）
-  useEffect(() => {
-    if (!roomId) return;
-
-    const pollMessages = async () => {
-      try {
-        const result = await api.chatMessages(roomId);
-        if (result.success && result.data) {
-          const serverMessages = Array.isArray(result.data) ? result.data : result.data.messages;
-          
-          // 筛选新消息：只接收对方消息和系统消息，不接收自己的消息（避免与乐观更新重复）
-          const existingIds = new Set(messages.map(m => m.id));
-          const partnerRole = role === "A" ? "B" : "A";
-          const newMessages = serverMessages.filter(msg => 
-            !existingIds.has(msg.id) && 
-            (msg.role === partnerRole || msg.role === 'system')
-          );
-          
-          if (newMessages.length > 0) {
-            const formattedMessages = newMessages.map(msg => ({
-              id: msg.id,
-              sender: msg.role,
-              content: msg.message,
-              timestamp: new Date(msg.timestamp),
-              isStoryClue: msg.isStoryClue || false
-            }));
-            
-            setMessages(prev => [...prev, ...formattedMessages]);
-          }
-        }
-      } catch (error) {
-        console.error("轮询消息失败:", error);
-      }
-    };
-
-    const pollInterval = setInterval(pollMessages, 2000);
-    return () => clearInterval(pollInterval);
-  }, [roomId, messages, role]);
-
-
+  // WebSocket 替代了轮询，所以移除轮询逻辑
 
   const handleSend = async () => {
-    if (!inputValue.trim() || isSending) return;
+    if (!inputValue.trim() || isSending || !isConnected || partnerLeft) return;
 
     setIsSending(true);
     const messageText = inputValue;
+    setInputValue("");
+
+    // 通过 WebSocket 发送消息
+    const sent = sendMessage(messageText);
     
-    // 立即添加到本地 (乐观更新)
+    if (!sent) {
+      console.error("WebSocket not connected, cannot send message");
+      alert("连接已断开，请刷新页面重试");
+      setInputValue(messageText); // 恢复输入
+      setIsSending(false);
+      return;
+    }
+
+    // 乐观更新：立即显示自己的消息
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: `temp-${Date.now()}`,
       sender: role,
       content: messageText,
       timestamp: new Date()
     };
     setMessages(prev => [...prev, newMessage]);
-    setInputValue("");
-
-    try {
-      // 调用真实 API 发送消息
-      const result = await api.chatSend({
-        roomId,
-        userId,
-        message: messageText,
-      });
-
-      if (result.success) {
-        // 如果后端返回了剧情线索，添加到消息列表
-        if (result.data?.storyClue) {
-          const clueMessage: Message = {
-            id: result.data.storyClue.id,
-            sender: "system",
-            content: result.data.storyClue.message,
-            timestamp: new Date(result.data.storyClue.timestamp),
-            isStoryClue: true
-          };
-          setMessages(prev => [...prev, clueMessage]);
-        }
-      } else {
-        console.error("发送消息失败:", result.error);
-        // 移除失败的乐观更新
-        setMessages(prev => prev.filter(m => m.id !== newMessage.id));
-        alert("发送消息失败，请重试");
-      }
-    } catch (error) {
-      console.error("发送消息出错:", error);
-      // 移除失败的乐观更新
-      setMessages(prev => prev.filter(m => m.id !== newMessage.id));
-    } finally {
-      setIsSending(false);
-    }
+    setIsSending(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -465,16 +457,32 @@ export function ChatRoom({ story, role, userProfile, partnerProfile, onExit, use
           <div className="flex-1 bg-white/5 backdrop-blur-lg border-white/20 sm:rounded-2xl border-0 sm:border p-3 sm:p-4 overflow-hidden flex flex-col">
             <div className="flex-1 overflow-y-auto space-y-3 sm:space-y-4">
               {messages.map((message) => {
-                // 系统消息（故事线索）
+                // 系统消息（故事线索 或 通知）
                 if (message.sender === "system") {
+                  const isPartnerLeftMsg = message.content === "对方已离开对话";
                   return (
                     <div key={message.id} className="flex justify-center">
-                      <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-lg border border-purple-400/30 rounded-2xl px-4 py-3 max-w-[85%] sm:max-w-[70%]">
+                      <div className={`backdrop-blur-lg rounded-2xl px-4 py-3 max-w-[85%] sm:max-w-[70%] ${
+                        isPartnerLeftMsg
+                          ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-400/30"
+                          : "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-400/30"
+                      }`}>
                         <div className="flex items-center gap-2 mb-1">
-                          <Lightbulb className="w-4 h-4 text-yellow-400" />
-                          <span className="text-purple-200 text-xs font-semibold">故事线索</span>
+                          {isPartnerLeftMsg ? (
+                            <>
+                              <UserX className="w-4 h-4 text-amber-400" />
+                              <span className="text-amber-200 text-xs font-semibold">系统通知</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lightbulb className="w-4 h-4 text-yellow-400" />
+                              <span className="text-purple-200 text-xs font-semibold">故事线索</span>
+                            </>
+                          )}
                         </div>
-                        <p className="text-purple-100 text-sm italic leading-relaxed">{message.content}</p>
+                        <p className={`text-sm italic leading-relaxed ${
+                          isPartnerLeftMsg ? "text-amber-100" : "text-purple-100"
+                        }`}>{message.content}</p>
                       </div>
                     </div>
                   );
@@ -515,19 +523,30 @@ export function ChatRoom({ story, role, userProfile, partnerProfile, onExit, use
             </div>
           </div>
 
+          {/* Partner Left Banner */}
+          {partnerLeft && (
+            <div className="mx-3 sm:mx-0 mt-2 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-400/30 rounded-xl px-4 py-3 flex items-center gap-3">
+              <UserX className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-amber-200 text-sm font-medium">对方已离开对话</p>
+                <p className="text-amber-300/70 text-xs mt-0.5">你可以查看聊天记录，或点击右上角离开</p>
+              </div>
+            </div>
+          )}
+
           {/* Input Area */}
           <div className="p-3 sm:p-0 sm:pt-4 flex gap-2 bg-gradient-to-t from-slate-900 via-slate-900 to-transparent sm:bg-none">
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="输入你的消息..."
-              disabled={isSending}
+              placeholder={partnerLeft ? "对方已离开，无法发送消息" : "输入你的消息..."}
+              disabled={isSending || partnerLeft}
               className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-purple-300 focus:border-purple-400 h-11"
             />
             <Button
               onClick={handleSend}
-              disabled={isSending || !inputValue.trim()}
+              disabled={isSending || !inputValue.trim() || partnerLeft}
               className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white h-11 w-11 p-0 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSending ? (

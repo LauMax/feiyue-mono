@@ -144,7 +144,7 @@ public sealed class MatchController : ControllerBase
             return Ok(new { matched = false, message = "No match found yet" });
 
         // 创建聊天室
-        var room = await _chatService.CreateRoomAsync(request.UserId, matchedUserId, cancellationToken);
+        var room = await _chatService.CreateRoomAsync(request.UserId, matchedUserId, story: null, isVirtual: false, cancellationToken);
 
         _logger.LogInformation("Match successful! Created room {RoomId}", room.Id);
 

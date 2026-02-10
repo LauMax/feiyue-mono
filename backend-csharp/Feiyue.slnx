@@ -13,6 +13,9 @@
       <Project Path="src/Service.Chat/Service.Chat.csproj" />
       <Project Path="src/Service.ChatStorage/Service.ChatStorage.csproj" />
     </Folder>
+    <Folder Name="/Story/">
+      <Project Path="src/Service.Story/Service.Story.csproj" />
+    </Folder>
     <Folder Name="/Match/">
       <Project Path="src/Service.Match/Service.Match.csproj" />
       <Project Path="src/Service.MatchStorage/Service.MatchStorage.csproj" />
