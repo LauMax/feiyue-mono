@@ -35,7 +35,7 @@ export function useChatWebSocket({
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const intentionalCloseRef = useRef(false);
 
   // 用 ref 稳定回调引用，避免 connect 函数每次渲染都变化导致重连循环
